@@ -4,6 +4,7 @@ import bodyParser from 'body-parser'
 import {graphqlExpress, graphiqlExpress} from 'graphql-server-express'
 import {makeExecutableSchema} from 'graphql-tools'
 import cors from 'cors'
+import webpush from 'web-push'
 
 const URL = 'http://localhost'
 const PORT = 3001
@@ -62,6 +63,16 @@ export const start = async () => {
         },
         createPush: async (root, args) => {
           const res = await Pushs.insert(args)
+          const push = await Pushs.findOne(ObjectId(res.insertedIds[0]));
+          const subscribers = await Subscribers.find({teacher: push.teacher});
+          subscribers.forEach((s) => {
+            // push notification here, TODO: verify payload
+            const pushRes = await webpush.sendNotification(s.subscription, push.payload);
+            console.log(pushRes);
+            if(pushRes.statusCode.toString() !== '200'){
+              // remove the subscription
+            }
+          })
           return prepare(await Pushs.findOne(ObjectId(res.insertedIds[0])))
         },
       },
