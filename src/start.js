@@ -6,6 +6,13 @@ import {makeExecutableSchema} from 'graphql-tools'
 import cors from 'cors'
 import webpush from 'web-push'
 
+// webpush.setGCMAPIKey(''); // optional
+webpush.setVapidDetails( // this is required
+  'mailto:janus.zhou1005@gmail.com',
+  'BJL-Fw-5Ts77YBPCuWCpA7xQIXDlXV_veh6hkIFC5lXwj7WH5wbac_RYHYN4gtjuMfDnBYWgGDA4v7aueurA5ZU',
+  'FCagE4TstpK3u1kFqqUi6rzTNg1rEX9w1XiOlXukeOk'
+);
+
 const URL = 'http://localhost'
 const PORT = 3001
 const MONGO_URL = 'mongodb://localhost:27017/web-push'
@@ -66,13 +73,16 @@ export const start = async () => {
           const push = await Pushs.findOne(ObjectId(res.insertedIds[0]));
           const subscribers = await Subscribers.find({teacher: push.teacher});
           subscribers.forEach((s) => {
+            console.log("subscriber details: ", s._id, s.subscription);
             // push notification here, TODO: verify payload
-            const pushRes = await webpush.sendNotification(s.subscription, push.payload);
-            console.log(pushRes);
-            if(pushRes.statusCode.toString() !== '200'){
-              // remove the subscription
-            }
-          })
+            webpush.sendNotification(JSON.parse(s.subscription), push.payload)
+              .then((pushRes) => {
+                console.log("push success", pushRes.statusCode, pushRes.body);
+              })
+              .catch((pushRes) => {
+                console.log("push failed", s.subscription, pushRes, pushRes.statusCode, pushRes.body);
+              })
+          }, (err) => console.log('Error: ', err))
           return prepare(await Pushs.findOne(ObjectId(res.insertedIds[0])))
         },
       },
