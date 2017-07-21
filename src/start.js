@@ -6,16 +6,15 @@ import {makeExecutableSchema} from 'graphql-tools'
 import cors from 'cors'
 import webpush from 'web-push'
 
-// webpush.setGCMAPIKey(''); // optional
 webpush.setVapidDetails( // this is required
   'mailto:janus.zhou1005@gmail.com',
   'BJL-Fw-5Ts77YBPCuWCpA7xQIXDlXV_veh6hkIFC5lXwj7WH5wbac_RYHYN4gtjuMfDnBYWgGDA4v7aueurA5ZU',
   'FCagE4TstpK3u1kFqqUi6rzTNg1rEX9w1XiOlXukeOk'
 );
 
-const URL = 'http://localhost'
-const PORT = 3001
-const MONGO_URL = 'mongodb://localhost:27017/web-push'
+const URL = 'http://localhost';
+const PORT = 3001;
+const MONGO_URL = 'mongodb://localhost:27017/web-push';
 
 const prepare = (o) => {
   o._id = o._id.toString()
@@ -65,22 +64,27 @@ export const start = async () => {
       },
       Mutation: {
         createSubscriber: async (root, args, context, info) => {
-          const res = await Subscribers.insert(args)
-          return prepare(await Subscribers.findOne(ObjectId(res.insertedIds[0])))
+          // insert subscribers only if teacher and subscription are different
+          const existing = await Subscribers.findOne(args);
+          if(!existing){
+            const res = await Subscribers.insert(args);
+            return prepare(await Subscribers.findOne(ObjectId(res.insertedIds[0])));
+          } else {
+            return prepare(existing);
+          }
         },
         createPush: async (root, args) => {
-          const res = await Pushs.insert(args)
+          const res = await Pushs.insert(args);
           const push = await Pushs.findOne(ObjectId(res.insertedIds[0]));
           const subscribers = await Subscribers.find({teacher: push.teacher});
           subscribers.forEach((s) => {
-            console.log("subscriber details: ", s._id, s.subscription);
-            // push notification here, TODO: verify payload
+            // push notification here, TODO: verify payload to JSON object
             webpush.sendNotification(JSON.parse(s.subscription), push.payload)
               .then((pushRes) => {
                 console.log("push success", pushRes.statusCode, pushRes.body);
               })
               .catch((pushRes) => {
-                console.log("push failed", s.subscription, pushRes, pushRes.statusCode, pushRes.body);
+                Subscribers.deleteOne({_id: ObjectId(s._id)});
               })
           }, (err) => console.log('Error: ', err))
           return prepare(await Pushs.findOne(ObjectId(res.insertedIds[0])))
